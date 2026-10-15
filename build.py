@@ -14,7 +14,7 @@ def fkind(t):
     g = t.get
     if g('leisure') in ('park', 'garden', 'playground', 'dog_park') or g('landuse') in ('recreation_ground', 'village_green'):
         return '公園'
-    if g('amenity') in ('school', 'university', 'college'):  # 幼兒園不算學校
+    if g('amenity') in ('school', 'university', 'college') and not any(w in (g('name') or '') for w in ('幼兒園', '幼稚園', '托嬰', '補習', '安親')):  # 幼兒園不算學校
         return '學校'
     if g('place') == 'square' or (g('highway') == 'pedestrian' and g('area') == 'yes'):
         return '廣場'

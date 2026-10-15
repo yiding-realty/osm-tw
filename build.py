@@ -161,13 +161,16 @@ def main(src, dst):
     n = 0; tot = 0
     for (i, j), d in C.items():
         s = json.dumps(d, ensure_ascii=False, separators=(',', ':'))
-        with open(os.path.join(dst, 't', f'{i}_{j}.json'), 'w', encoding='utf-8') as fp:
-            fp.write(s)
+        # 國土測繪雲網頁限制只能用 fetch 連政府網站，但允許載入外部 script，所以資料包成 .js
+        with open(os.path.join(dst, 't', f'{i}_{j}.js'), 'w', encoding='utf-8') as fp:
+            fp.write(f"__OSMT('{i}_{j}',{s});")
         n += 1; tot += len(s)
     meta = {'built': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%MZ'), 'cells': n, 'cell': CELL, 'margin': MARGIN,
             'source': 'OpenStreetMap contributors, ODbL (via Geofabrik taiwan-latest)'}
     with open(os.path.join(dst, 'meta.json'), 'w', encoding='utf-8') as fp:
         json.dump(meta, fp, ensure_ascii=False)
+    with open(os.path.join(dst, 'meta.js'), 'w', encoding='utf-8') as fp:
+        fp.write("__OSMT('meta'," + json.dumps(meta, ensure_ascii=False) + ");")
     with open(os.path.join(dst, 'index.html'), 'w', encoding='utf-8') as fp:
         fp.write('<!doctype html><meta charset="utf-8"><title>osm-tw</title><p>義鼎不動產「地號查經緯度」工具用的開放街圖分塊資料。'
                  '資料來源：© OpenStreetMap contributors（ODbL）。更新時間：' + meta['built'] + '</p>')

@@ -28,6 +28,12 @@ def fkind(t):
 def r6(x):
     return round(x, 6)
 
+CORR = {}
+try:
+    CORR = {k: v for k, v in json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'corrections.json'), encoding='utf-8')).items() if not k.startswith('_')}
+except FileNotFoundError:
+    pass
+
 class H(osmium.SimpleHandler):
     def __init__(self):
         super().__init__()
@@ -61,6 +67,9 @@ class H(osmium.SimpleHandler):
 
     def area(self, a):
         k = fkind(a.tags)
+        key = ('way/' if a.from_way() else 'relation/') + str(a.orig_id())
+        if key in CORR:
+            k = CORR[key]
         if not k:
             return
         rings = []

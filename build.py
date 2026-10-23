@@ -81,7 +81,7 @@ def fkind(t):
         if g('access') in ('private', 'no', 'customers') or g('garden:type') in ('residential', 'private'):
             return ''  # 私人庭園、社區中庭
         if not nm and (le == 'garden' or lu in ('grass', 'greenery', 'village_green') or le == 'common'):
-            return ''  # 沒名字的庭園／草地多半是中庭、空地
+            return '綠地'  # 沒名字的庭園／草地：工具端要國土利用圖也是公園色才算公園
         return '公園'
     return ''
 

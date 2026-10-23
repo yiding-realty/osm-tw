@@ -185,7 +185,7 @@ class H(osmium.SimpleHandler):
             if CORR.get(key, None) == '' :
                 pass
             elif CORR.get(key) == '河川' or river_name_ok(nname(t)) is True:  # 線狀水道只收清單內景觀河川（暗渠、排水溝不收）
-                self.lines.append(('河川', pts, 'w%d' % w.id))
+                self.lines.append(('河川', pts, 'w%d' % w.id, nname(t)))
         if 'addr:housenumber' in t and ('addr:street' in t or 'addr:place' in t):
             lon = sum(p[0] for p in pts) / len(pts); lat = sum(p[1] for p in pts) / len(pts)
             self.addrs.append((t.get('addr:street') or t.get('addr:place'), t['addr:housenumber'], r6(lon), r6(lat)))
@@ -285,13 +285,13 @@ def main(src, dst):
         for i, j in cells_of(x0, y0, x1, y1):
             for part in clip_line(pts, ebox(i, j)):
                 C[(i, j)]['w'].append([nm, part])
-    for k, pts, lid in h.lines:
+    for k, pts, lid, lnm in h.lines:
         x0, y0, x1, y1 = bbox(pts)
         if not inb(x0, y0, x1, y1):
             continue
         for i, j in cells_of(x0, y0, x1, y1):
             for part in clip_line(pts, ebox(i, j)):
-                C[(i, j)]['f'].append([k, 1, [part], {'id': lid}])
+                C[(i, j)]['f'].append([k, 1, [part], {'id': lid, 'n': lnm} if lnm else {'id': lid}])
     for i, (nm, lon, lat) in enumerate(HERITAGE):
         if i not in h.hmatched:
             h.points.append(('古蹟', lon, lat, nm))

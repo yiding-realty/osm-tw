@@ -276,6 +276,29 @@ def main(src, dst):
     h = H()
     h.apply_file(src, locations=True, idx='flex_mem')
     print('roads', len(h.roads), 'lines', len(h.lines), 'polys', len(h.polys), 'points', len(h.points), 'addrs', len(h.addrs), flush=True)
+    # 無名稱的河川面（riverbank 等）：借用落在面內的有名稱河川線的名字（例：鹽水溪）
+    def pip(x, y, ring):
+        c = False
+        j = len(ring) - 1
+        for i in range(len(ring)):
+            xi, yi = ring[i][0], ring[i][1]; xj, yj = ring[j][0], ring[j][1]
+            if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+                c = not c
+            j = i
+        return c
+    named = [(pts, nm) for k, pts, lid, nm in h.lines if nm]
+    for idx, (k, rings, meta) in enumerate(h.polys):
+        if k != '河川' or meta.get('n'):
+            continue
+        xs = [p[0] for r in rings for p in r]; ys = [p[1] for r in rings for p in r]
+        bx0, bx1, by0, by1 = min(xs), max(xs), min(ys), max(ys)
+        cnt = {}
+        for pts, nm in named:
+            for p in pts[::2] + [pts[-1]]:
+                if bx0 <= p[0] <= bx1 and by0 <= p[1] <= by1 and any(pip(p[0], p[1], r) for r in rings if len(r) > 3):
+                    cnt[nm] = cnt.get(nm, 0) + 1
+        if cnt:
+            meta['n'] = max(cnt, key=cnt.get)
     C = defaultdict(lambda: {'w': [], 'f': [], 'a': []})
     inb = lambda x0, y0, x1, y1: not (x1 < BBOX[0] or x0 > BBOX[2] or y1 < BBOX[1] or y0 > BBOX[3])
     for nm, pts in h.roads:

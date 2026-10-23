@@ -185,7 +185,7 @@ class H(osmium.SimpleHandler):
             if CORR.get(key, None) == '' :
                 pass
             elif CORR.get(key) == '河川' or river_name_ok(nname(t)) is True:  # 線狀水道只收清單內景觀河川（暗渠、排水溝不收）
-                self.lines.append(('河川', pts))
+                self.lines.append(('河川', pts, 'w%d' % w.id))
         if 'addr:housenumber' in t and ('addr:street' in t or 'addr:place' in t):
             lon = sum(p[0] for p in pts) / len(pts); lat = sum(p[1] for p in pts) / len(pts)
             self.addrs.append((t.get('addr:street') or t.get('addr:place'), t['addr:housenumber'], r6(lon), r6(lat)))
@@ -221,7 +221,7 @@ class H(osmium.SimpleHandler):
             nm = nname(a.tags)
             if hs and A <= 30000:  # 國定／直轄市定古蹟所在的範圍
                 self.hmatched.update(hs)
-                self.polys.append(('古蹟', rings, {'a': A, 'w': W, 'n': HERITAGE[hs[0]][0]}))
+                self.polys.append(('古蹟', rings, {'a': A, 'w': W, 'n': HERITAGE[hs[0]][0], 'id': key[0] + key[key.index('/') + 1:]}))
                 return
             if not k:
                 return
@@ -232,7 +232,7 @@ class H(osmium.SimpleHandler):
                 if ok is False or (ok is None and W < 30):
                     return  # 排水溝、窄水道不算河川（清單外要寬 30m 以上）
                 k = '河川'
-            self.polys.append((k, rings, {'a': A, 'w': W, 'n': nm}))
+            self.polys.append((k, rings, {'a': A, 'w': W, 'n': nm, 'id': key[0] + key[key.index('/') + 1:]}))
 
 def cells_of(x0, y0, x1, y1):
     i0 = math.floor((x0 - MARGIN) / CELL); i1 = math.floor((x1 + MARGIN) / CELL)
@@ -285,13 +285,13 @@ def main(src, dst):
         for i, j in cells_of(x0, y0, x1, y1):
             for part in clip_line(pts, ebox(i, j)):
                 C[(i, j)]['w'].append([nm, part])
-    for k, pts in h.lines:
+    for k, pts, lid in h.lines:
         x0, y0, x1, y1 = bbox(pts)
         if not inb(x0, y0, x1, y1):
             continue
         for i, j in cells_of(x0, y0, x1, y1):
             for part in clip_line(pts, ebox(i, j)):
-                C[(i, j)]['f'].append([k, 1, [part]])
+                C[(i, j)]['f'].append([k, 1, [part], {'id': lid}])
     for i, (nm, lon, lat) in enumerate(HERITAGE):
         if i not in h.hmatched:
             h.points.append(('古蹟', lon, lat, nm))

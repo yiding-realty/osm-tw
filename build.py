@@ -137,10 +137,18 @@ def pip(x, y, ring):
         j = i
     return c
 
+HGRID = {}
+for _i, (_nm, _lo, _la) in enumerate(HERITAGE):
+    HGRID.setdefault((math.floor(_lo * 100), math.floor(_la * 100)), []).append(_i)
+
 def heritage_in(rings):
     xs = [p[0] for r in rings for p in r]; ys = [p[1] for r in rings for p in r]
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-    return [i for i, (nm, lo, la) in enumerate(HERITAGE) if x0 <= lo <= x1 and y0 <= la <= y1 and any(pip(lo, la, r) for r in rings)]
+    cand = []
+    for i in range(math.floor(x0 * 100), math.floor(x1 * 100) + 1):
+        for j in range(math.floor(y0 * 100), math.floor(y1 * 100) + 1):
+            cand.extend(HGRID.get((i, j), ()))
+    return [i for i in cand if x0 <= HERITAGE[i][1] <= x1 and y0 <= HERITAGE[i][2] <= y1 and any(pip(HERITAGE[i][1], HERITAGE[i][2], r) for r in rings)]
 
 class H(osmium.SimpleHandler):
     def __init__(self):
@@ -189,8 +197,16 @@ class H(osmium.SimpleHandler):
         key = ('way/' if a.from_way() else 'relation/') + str(a.orig_id())
         if key in CORR and k != '水':
             k = CORR[key]
-        if not k and not (hcand and HERITAGE):
+        if not k and not (hcand and HGRID):
             return
+        if not k:  # 只是可能的古蹟範圍：附近沒有古蹟點就略過，免得處理每棟建物
+            try:
+                n0 = next(iter(next(iter(a.outer_rings()))))
+                ci, cj = math.floor(n0.lon * 100), math.floor(n0.lat * 100)
+            except Exception:
+                return
+            if not any((ci + di, cj + dj) in HGRID for di in (-1, 0, 1) for dj in (-1, 0, 1)):
+                return
         rings = []
         try:
             for ring in a.outer_rings():
@@ -198,14 +214,15 @@ class H(osmium.SimpleHandler):
         except Exception:
             return
         if rings:
+            hs = heritage_in(rings) if (hcand and k != '學校' and HGRID) else []
+            if not k and not hs:
+                return
             A, W = geo_meta(rings)
             nm = nname(a.tags)
-            if hcand and k != '學校' and A <= 30000:
-                hs = heritage_in(rings)
-                if hs:  # 國定／直轄市定古蹟所在的範圍
-                    self.hmatched.update(hs)
-                    self.polys.append(('古蹟', rings, {'a': A, 'w': W, 'n': HERITAGE[hs[0]][0]}))
-                    return
+            if hs and A <= 30000:  # 國定／直轄市定古蹟所在的範圍
+                self.hmatched.update(hs)
+                self.polys.append(('古蹟', rings, {'a': A, 'w': W, 'n': HERITAGE[hs[0]][0]}))
+                return
             if not k:
                 return
             if k == '水':

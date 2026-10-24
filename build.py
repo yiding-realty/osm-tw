@@ -16,6 +16,8 @@ DRAIN = ('排水', '大排', '圳', '溝', '渠', '涵')
 PUBLIC = re.compile(r'國立|市立|縣立|^臺南市|^高雄市')
 HIDE = ('cycleway', 'footway', 'path', 'bridleway', 'steps', 'proposed', 'corridor', 'platform', 'elevator', 'raceway')
 
+ROADFIX = []  # 道路改名（由 corrections.json 載入）
+
 def nname(t):
     return (t.get('name') or '').replace('台', '臺')
 
@@ -42,6 +44,8 @@ def fkind(t):
     g = t.get
     nm = nname(t)
     am, lu, le = g('amenity'), g('landuse'), g('leisure')
+    if t.get('landuse') == 'traffic_island' or t.get('traffic_calming') == 'island' or t.get('highway') == 'traffic_island' or re.search(r'分隔島|安全島|中央分隔|槽化島|圓環綠島', nm):
+        return ''  # 路中分隔島（Allen 2026-10-24：一律不標面綠帶）
     # 嫌惡設施
     if am == 'funeral_hall' or '殯儀館' in nm:
         return '殯儀館'
@@ -113,6 +117,7 @@ try:
     CORR = {k: v for k, v in json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'corrections.json'), encoding='utf-8')).items() if not k.startswith('_')}
 except FileNotFoundError:
     pass
+ROADFIX.extend(CORR.pop('道路改名', []))
 
 HERITAGE = []  # (name, lon, lat)
 try:
@@ -178,6 +183,9 @@ class H(osmium.SimpleHandler):
             return
         hw = t.get('highway')
         nm = t.get('name') or t.get('ref')
+        for fx in ROADFIX:
+            if nm == fx['from'] and any(abs(p[0] - fx['at'][0]) < 0.00006 and abs(p[1] - fx['at'][1]) < 0.00006 for p in pts):
+                nm = fx['to']
         if hw and nm and hw not in HIDE and not (hw == 'pedestrian' and t.get('area') == 'yes') and len(pts) > 1:  # 自行車道、步道、預定線不算道路
             self.roads.append((nm, pts))
         if t.get('waterway') in ('river', 'canal', 'stream') and len(pts) > 1 and not underground(t):

@@ -16,6 +16,7 @@ DRAIN = ('排水', '大排', '圳', '溝', '渠', '涵')
 PUBLIC = re.compile(r'國立|市立|縣立|^臺南市|^高雄市')
 HIDE = ('cycleway', 'footway', 'path', 'bridleway', 'steps', 'proposed', 'corridor', 'platform', 'elevator', 'raceway')
 
+POINTFIX = []  # 已不存在的點狀地物（由 corrections.json 載入）
 ROADFIX = []  # 道路改名（由 corrections.json 載入）
 
 def nname(t):
@@ -118,6 +119,7 @@ try:
 except FileNotFoundError:
     pass
 ROADFIX.extend(CORR.pop('道路改名', []))
+POINTFIX.extend(CORR.pop('刪除點', []))
 
 HERITAGE = []  # (name, lon, lat)
 try:
@@ -169,6 +171,8 @@ class H(osmium.SimpleHandler):
         t = n.tags
         k = fkind(t)
         if k in ('殯儀館', '火葬場', '納骨塔', '變電所', '焚化廠', '掩埋場', '加油站', '博物館', '美術館', '文化中心', '古蹟') and n.location.valid():
+            if any(nname(t) == fx['name'] and abs(n.location.lon - fx['at'][0]) < 0.0002 and abs(n.location.lat - fx['at'][1]) < 0.0002 for fx in POINTFIX):
+                return
             self.points.append((k, r6(n.location.lon), r6(n.location.lat), nname(t)))
         if 'addr:housenumber' in t and ('addr:street' in t or 'addr:place' in t) and n.location.valid():
             self.addrs.append((t.get('addr:street') or t.get('addr:place'), t['addr:housenumber'], r6(n.location.lon), r6(n.location.lat)))

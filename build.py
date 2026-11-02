@@ -19,6 +19,15 @@ HIDE = ('cycleway', 'footway', 'path', 'bridleway', 'steps', 'proposed', 'corrid
 POINTFIX = []  # 已不存在的點狀地物（由 corrections.json 載入）
 ROADFIX = []  # 道路改名（由 corrections.json 載入）
 
+def road_ref(ref):
+    """沒有路名只有編號時：三位數（可帶甲、乙）寫成「171縣道」，其餘維持原編號"""
+    if not ref:
+        return ref
+    parts = [x.strip() for x in ref.split(';')]
+    if all(re.fullmatch(r'\d{3}[甲乙]?', x) for x in parts):
+        return '、'.join(x + '縣道' for x in parts)
+    return ref
+
 def nname(t):
     return (t.get('name') or '').replace('台', '臺')
 
@@ -186,7 +195,7 @@ class H(osmium.SimpleHandler):
         if len(pts) < 1:
             return
         hw = t.get('highway')
-        nm = t.get('name') or t.get('ref')
+        nm = t.get('name') or road_ref(t.get('ref'))
         for fx in ROADFIX:
             if nm == fx['from'] and any(abs(p[0] - fx['at'][0]) < 0.00006 and abs(p[1] - fx['at'][1]) < 0.00006 for p in pts):
                 nm = fx['to']

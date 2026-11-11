@@ -196,6 +196,8 @@ class H(osmium.SimpleHandler):
             return
         hw = t.get('highway')
         nm = t.get('name') or road_ref(t.get('ref'))
+        if nm == '西藏街(圖博街)':  # Allen 2026-11-11：Google/國土只標西藏街
+            nm = '西藏街'
         for fx in ROADFIX:
             if nm == fx['from'] and any(abs(p[0] - fx['at'][0]) < 0.00006 and abs(p[1] - fx['at'][1]) < 0.00006 for p in pts):
                 nm = fx['to']

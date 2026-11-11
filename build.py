@@ -184,7 +184,7 @@ class H(osmium.SimpleHandler):
                 return
             self.points.append((k, r6(n.location.lon), r6(n.location.lat), nname(t)))
         if 'addr:housenumber' in t and ('addr:street' in t or 'addr:place' in t) and n.location.valid():
-            self.addrs.append((t.get('addr:street') or t.get('addr:place'), t['addr:housenumber'], r6(n.location.lon), r6(n.location.lat)))
+            self.addrs.append(((t.get('addr:street') or t.get('addr:place')).replace('西藏街(圖博街)', '西藏街'), t['addr:housenumber'], r6(n.location.lon), r6(n.location.lat)))
 
     def way(self, w):
         t = w.tags

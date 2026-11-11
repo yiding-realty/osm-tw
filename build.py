@@ -211,7 +211,7 @@ class H(osmium.SimpleHandler):
                 self.lines.append(('河川', pts, 'w%d' % w.id, nname(t)))
         if 'addr:housenumber' in t and ('addr:street' in t or 'addr:place' in t):
             lon = sum(p[0] for p in pts) / len(pts); lat = sum(p[1] for p in pts) / len(pts)
-            self.addrs.append((t.get('addr:street') or t.get('addr:place'), t['addr:housenumber'], r6(lon), r6(lat)))
+            self.addrs.append(((t.get('addr:street') or t.get('addr:place')).replace('西藏街(圖博街)', '西藏街'), t['addr:housenumber'], r6(lon), r6(lat)))
 
     def area(self, a):
         k = fkind(a.tags)

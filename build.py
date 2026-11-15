@@ -99,6 +99,54 @@ def fkind(t):
         return '公園'
     return ''
 
+# 不動產說明書「周邊半徑 300 公尺重要環境設施」20 類（內政部不動產說明書應記載事項）。
+# 放在分塊檔的 'e' 欄，與「地號查經緯度」工具使用的 'f' 欄分開，互不影響。
+# 0 公(私)有市場 1 超級市場 2 學校 3 警察局 4 行政機關 5 體育場 6 醫院 7 飛機場 8 台電變電所 9 高壓電塔
+# 10 寺廟 11 殯儀館 12 公墓 13 火化場 14 骨灰(骸)存放設施 15 垃圾場(掩埋、焚化) 16 私人墳墓 17 加油(氣)站 18 瓦斯行 19 葬儀社
+def ekind(t):
+    g = t.get
+    nm = nname(t)
+    am, sh, pw, lu = g('amenity'), g('shop'), g('power'), g('landuse')
+    if re.search(r'納骨|靈骨|骨灰', nm):
+        return 14
+    if am == 'funeral_hall' or '殯儀館' in nm:
+        return 11
+    if am == 'crematorium' or re.search(r'火化場|火葬場', nm):
+        return 13
+    if lu == 'cemetery' or am == 'grave_yard' or '公墓' in nm:
+        return 12
+    if sh == 'funeral_directors' or re.search(r'葬儀社|禮儀社', nm):
+        return 19
+    if lu == 'landfill' or re.search(r'焚化廠|焚化爐|掩埋場|垃圾場', nm):
+        return 15
+    if am == 'marketplace':
+        return 0
+    if sh == 'supermarket':
+        return 1
+    if am in ('school', 'university', 'college') and not re.search(r'幼兒園|幼稚園|托嬰|補習|安親', nm):
+        return 2
+    if am == 'police':
+        return 3
+    if am == 'townhall' or g('office') == 'government':
+        return 4
+    if g('leisure') == 'stadium' or (g('leisure') == 'sports_centre' and re.search(r'體育|運動中心|運動場', nm)):
+        return 5
+    if am == 'hospital':
+        return 6
+    if g('aeroway') == 'aerodrome':
+        return 7
+    if pw == 'substation' and g('substation') != 'minor_distribution':
+        return 8
+    if pw == 'tower':
+        return 9
+    if am == 'place_of_worship' and g('religion') not in ('christian', 'muslim') and not re.search(r'教會|教堂|清真', nm):
+        return 10
+    if am == 'fuel':
+        return 17
+    if sh == 'gas':
+        return 18
+    return -1
+
 def geo_meta(rings):
     """外環總面積（㎡）與等效矩形短邊（m）"""
     A = P = 0.0
@@ -174,11 +222,16 @@ class H(osmium.SimpleHandler):
         self.polys = []   # (kind, [ring,...])
         self.addrs = []   # (street, no, lon, lat)
         self.points = []  # (kind, lon, lat, name) 點狀地物
+        self.env = []     # (類別, lon, lat, name, 半徑m, bbox) 說明書周邊設施
         self.hmatched = set()
 
     def node(self, n):
         t = n.tags
         k = fkind(t)
+        c = ekind(t)
+        if c >= 0 and n.location.valid():
+            x, y = r6(n.location.lon), r6(n.location.lat)
+            self.env.append((c, x, y, nname(t), 0, (x, y, x, y)))
         if k in ('殯儀館', '火葬場', '納骨塔', '變電所', '焚化廠', '掩埋場', '加油站', '博物館', '美術館', '文化中心', '古蹟') and n.location.valid():
             if any(nname(t) == fx['name'] and abs(n.location.lon - fx['at'][0]) < 0.0002 and abs(n.location.lat - fx['at'][1]) < 0.0002 for fx in POINTFIX):
                 return
@@ -214,8 +267,19 @@ class H(osmium.SimpleHandler):
             self.addrs.append(((t.get('addr:street') or t.get('addr:place')).replace('西藏街(圖博街)', '西藏街'), t['addr:housenumber'], r6(lon), r6(lat)))
 
     def area(self, a):
-        k = fkind(a.tags)
         t = a.tags
+        c = ekind(t)
+        if c >= 0 and c != 9:
+            try:
+                ring = [(n.lon, n.lat) for n in next(iter(a.outer_rings()))]
+                xs = [p[0] for p in ring]; ys = [p[1] for p in ring]
+                x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+                cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+                rad = math.hypot((x1 - x0) / 2 * 102000, (y1 - y0) / 2 * 111000)
+                self.env.append((c, r6(cx), r6(cy), nname(t), int(rad), (x0, y0, x1, y1)))
+            except Exception:
+                pass
+        k = fkind(a.tags)
         hcand = k in ('公園', '廣場', '博物館', '美術館', '文化中心') or any(x in t for x in ('historic', 'tourism', 'building')) or t.get('amenity') == 'place_of_worship' or t.get('leisure') is not None
         key = ('way/' if a.from_way() else 'relation/') + str(a.orig_id())
         if key in CORR and k != '水':
@@ -298,7 +362,7 @@ def bbox(pts):
 def main(src, dst):
     h = H()
     h.apply_file(src, locations=True, idx='flex_mem')
-    print('roads', len(h.roads), 'lines', len(h.lines), 'polys', len(h.polys), 'points', len(h.points), 'addrs', len(h.addrs), flush=True)
+    print('roads', len(h.roads), 'lines', len(h.lines), 'polys', len(h.polys), 'points', len(h.points), 'addrs', len(h.addrs), 'env', len(h.env), flush=True)
     # 無名稱的河川面（riverbank 等）：借用落在面內的有名稱河川線的名字（例：鹽水溪）
     def pip(x, y, ring):
         c = False
@@ -360,6 +424,14 @@ def main(src, dst):
                     C[(i, j)]['f'].append([k, 2, parts, meta])
             else:
                 C[(i, j)]['f'].append([k, 0, rings, meta])
+    for c, lon, lat, nm, rad, bb in h.env:
+        if not inb(*bb):
+            continue
+        for i, j in cells_of(*bb):
+            b = ebox(i, j)
+            if bb[2] < b[0] or bb[0] > b[2] or bb[3] < b[1] or bb[1] > b[3]:
+                continue
+            C[(i, j)].setdefault('e', []).append([c, lon, lat, nm, rad] if rad else [c, lon, lat, nm])
     for st, no, lon, lat in h.addrs:
         if not inb(lon, lat, lon, lat):
             continue
